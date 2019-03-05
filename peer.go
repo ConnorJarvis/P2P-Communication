@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
+	"math/big"
 	"net"
 	"strconv"
 )
@@ -141,20 +143,49 @@ func (p *Peer) SendMessage(p2 Peer, m Message) error {
 
 func (p *Peer) HandleBootstrap(m Message) error {
 	newPeer := m.Body.Content.(Peer)
-	p.parentCluster.Peers[newPeer.ID] = newPeer
+	p.parentCluster.Peers[newPeer.ID] = &newPeer
+	p.parentCluster.PeerIDs = append(p.parentCluster.PeerIDs, newPeer.ID)
 	peers := make([]Peer, 0)
 	for _, peer := range p.parentCluster.Peers {
 		peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 	}
 	M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
 	p.SendMessage(newPeer, M)
+
 	return nil
 }
 
 func (p *Peer) HandleNewPeers(m Message) error {
 	newPeers := m.Body.Content.([]Peer)
+	changed := false
 	for i := 0; i < len(newPeers); i++ {
-		p.parentCluster.Peers[newPeers[i].ID] = newPeers[i]
+		if p.parentCluster.Peers[newPeers[i].ID] == nil {
+			p.parentCluster.Peers[newPeers[i].ID] = &newPeers[i]
+			p.parentCluster.PeerIDs = append(p.parentCluster.PeerIDs, newPeers[i].ID)
+			changed = true
+		}
+	}
+	if changed {
+		for i := 0; i < len(p.parentCluster.PeerIDs); i++ {
+			indexID := 0
+			for {
+				index, err := rand.Int(rand.Reader, big.NewInt(int64(len(p.parentCluster.PeerIDs)-1)))
+				indexID = int(index.Int64())
+				if err != nil {
+					return err
+				}
+				if p.parentCluster.PeerIDs[indexID] != p.ID {
+					break
+				}
+			}
+			peers := make([]Peer, 0)
+			for _, peer := range p.parentCluster.Peers {
+				peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
+			}
+			M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
+			p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
+
+		}
 	}
 	return nil
 }

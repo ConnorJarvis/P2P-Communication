@@ -7,19 +7,22 @@ import (
 )
 
 type Cluster struct {
-	Peers     map[string]Peer
+	Peers     map[string]*Peer
+	PeerIDs   []string
 	LocalPeer Peer
 	Values    map[string]string
 }
 
 func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int, Key rsa.PrivateKey) error {
-	c.Peers = make(map[string]Peer)
+	c.Peers = make(map[string]*Peer)
+	c.PeerIDs = make([]string, 0)
 	uuid, err := uuid.NewUUID()
 	if err != nil {
 		return err
 	}
 	c.LocalPeer = Peer{IP: LocalIP, Port: LocalPort, ID: uuid.String(), parentCluster: c}
-	c.Peers[c.LocalPeer.ID] = Peer{IP: LocalIP, Port: LocalPort, ID: uuid.String()}
+	c.Peers[c.LocalPeer.ID] = &Peer{IP: LocalIP, Port: LocalPort, ID: uuid.String()}
+	c.PeerIDs = append(c.PeerIDs, uuid.String())
 	err = c.LocalPeer.InitializeRSAUtil(2048, &Key)
 	if err != nil {
 		return err
@@ -42,13 +45,15 @@ func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int,
 }
 
 func (c *Cluster) Start(LocalIP string, LocalPort int, Key rsa.PrivateKey) error {
-	c.Peers = make(map[string]Peer)
+	c.Peers = make(map[string]*Peer)
+	c.PeerIDs = make([]string, 0)
 	uuid, err := uuid.NewUUID()
 	if err != nil {
 		return err
 	}
 	c.LocalPeer = Peer{IP: LocalIP, Port: LocalPort, ID: uuid.String(), parentCluster: c}
-	c.Peers[c.LocalPeer.ID] = Peer{IP: LocalIP, Port: LocalPort, ID: uuid.String()}
+	c.Peers[c.LocalPeer.ID] = &Peer{IP: LocalIP, Port: LocalPort, ID: uuid.String()}
+	c.PeerIDs = append(c.PeerIDs, uuid.String())
 	err = c.LocalPeer.InitializeRSAUtil(2048, &Key)
 	if err != nil {
 		return err

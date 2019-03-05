@@ -26,10 +26,12 @@ func main() {
 	time.Sleep(time.Second * 2)
 	C2 := Cluster{}
 	C2.Bootstrap("127.0.0.1", "127.0.0.1", 8081, 8080, RSA.Key)
+	C3 := Cluster{}
+	C3.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8081, RSA.Key)
 	time.Sleep(time.Second * 10)
 	spew.Dump(C.Peers)
 	spew.Dump(C2.Peers)
-
+	spew.Dump(C3.Peers)
 	for {
 
 	}
