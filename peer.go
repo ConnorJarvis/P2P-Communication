@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
-	"fmt"
 	"math/big"
 	"net"
 	"strconv"
@@ -15,8 +14,8 @@ type Peer struct {
 	ID            string
 	IP            string
 	Port          int
-	RSA           RSAUtil
-	server        net.UDPConn
+	RSA           *RSAUtil
+	server        *net.UDPConn
 	parentCluster *Cluster
 }
 
@@ -36,7 +35,7 @@ func (p *Peer) StartListening() error {
 		return err
 	}
 	//Assign UDPConn to Peer
-	p.server = *u
+	p.server = u
 
 	//Listen to incoming messages
 	go func() {
@@ -73,7 +72,7 @@ func (p *Peer) HandleMessage(message []byte) error {
 		return err
 	}
 	//Verify message
-	err = m.VerifyMessage(p.RSA)
+	err = m.VerifyMessage(*p.RSA)
 	if err != nil {
 		return err
 	}
@@ -89,7 +88,7 @@ func (p *Peer) HandleMessage(message []byte) error {
 
 func (p *Peer) InitializeRSAUtil(length int, Key *rsa.PrivateKey) error {
 	//Create RSAUtil struct
-	p.RSA = RSAUtil{}
+	p.RSA = &RSAUtil{}
 	//Initialize source of crypto/rand bytes
 	err := p.RSA.InitializeReader()
 	if err != nil {
@@ -116,7 +115,7 @@ func (p *Peer) InitializeRSAUtil(length int, Key *rsa.PrivateKey) error {
 
 func (p *Peer) SendMessage(p2 Peer, m Message) error {
 	//Sign Message
-	err := m.SignMessage(p.RSA)
+	err := m.SignMessage(*p.RSA)
 	if err != nil {
 		return err
 	}
@@ -153,7 +152,11 @@ func (p *Peer) HandleBootstrap(m Message) error {
 	M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
 	p.SendMessage(newPeer, M)
 	sentIDs := make(map[int]bool)
-	for i := 0; i < len(p.parentCluster.PeerIDs)-1; i++ {
+	peersToShare := len(p.parentCluster.PeerIDs) - 1
+	if peersToShare > 5 {
+		peersToShare = 5
+	}
+	for i := 0; i < peersToShare; i++ {
 		indexID := 0
 		for {
 			index, err := rand.Int(rand.Reader, big.NewInt(int64(len(p.parentCluster.PeerIDs)-1)))
@@ -166,10 +169,6 @@ func (p *Peer) HandleBootstrap(m Message) error {
 				break
 			}
 		}
-		fmt.Println(p.parentCluster.Peers[m.Header.From].Port)
-		fmt.Println(p.Port)
-		fmt.Println("Shared new peer")
-		fmt.Println(p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]].Port)
 		peers := make([]Peer, 0)
 		for _, peer := range p.parentCluster.Peers {
 			peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
@@ -191,10 +190,13 @@ func (p *Peer) HandleNewPeers(m Message) error {
 			changed = true
 		}
 	}
-	fmt.Println(changed)
 	if changed {
 		sentIDs := make(map[int]bool)
-		for i := 0; i < len(p.parentCluster.PeerIDs)-1; i++ {
+		peersToShare := len(p.parentCluster.PeerIDs) - 1
+		if peersToShare > 5 {
+			peersToShare = 5
+		}
+		for i := 0; i < peersToShare; i++ {
 			indexID := 0
 			for {
 				index, err := rand.Int(rand.Reader, big.NewInt(int64(len(p.parentCluster.PeerIDs)-1)))
@@ -207,10 +209,6 @@ func (p *Peer) HandleNewPeers(m Message) error {
 					break
 				}
 			}
-			fmt.Println(p.parentCluster.Peers[m.Header.From].Port)
-			fmt.Println(p.Port)
-			fmt.Println("Shared new peer")
-			fmt.Println(p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]].Port)
 			peers := make([]Peer, 0)
 			for _, peer := range p.parentCluster.Peers {
 				peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})

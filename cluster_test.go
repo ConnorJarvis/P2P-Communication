@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -31,12 +33,19 @@ func TestBootstrap(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	time.Sleep(time.Second * 1)
 	C3 := Cluster{}
 	err = C3.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8081, RSA.Key)
 	if err != nil {
 		t.Error(err)
 	}
 	time.Sleep(time.Second * 2)
+	if !reflect.DeepEqual(C.Peers, C2.Peers) {
+		t.Error(errors.New("Peers did not propagate"))
+	}
+	if !reflect.DeepEqual(C3.Peers, C2.Peers) {
+		t.Error(errors.New("Peers did not propagate"))
+	}
 	C.Shutdown()
 	C2.Shutdown()
 	C3.Shutdown()

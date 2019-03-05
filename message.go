@@ -83,7 +83,7 @@ func (m *Message) SignMessage(RSA RSAUtil) error {
 	if err != nil {
 		return err
 	}
-	//Calculate signature of from
+	//Calculate signature of header
 	headerSignature, err := rsa.SignPKCS1v15(RSA.Reader, &RSA.Key, crypto.SHA256, headerHash)
 	if err != nil {
 		return err
@@ -105,7 +105,7 @@ func (m *Message) VerifyMessage(RSA RSAUtil) error {
 	bodyHasher.Write(bodyBytes)
 	bodyHash := bodyHasher.Sum(nil)
 
-	//Calculate hash of from
+	//Calculate hash of header
 	headerHasher := sha256.New()
 	//Encode Header struct to bytes
 	headerBytes, err := m.Header.Encode()
@@ -119,7 +119,7 @@ func (m *Message) VerifyMessage(RSA RSAUtil) error {
 	if err != nil {
 		return errors.New("Invalid Body Signature")
 	}
-	//Verify from signature
+	//Verify header signature
 	err = rsa.VerifyPKCS1v15(&RSA.Key.PublicKey, crypto.SHA256, headerHash, m.HeaderSignature)
 	if err != nil {
 		return errors.New("Invalid From Signature")
