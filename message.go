@@ -24,10 +24,11 @@ type Body struct {
 	Content interface{}
 }
 
-func (b *Header) Encode() ([]byte, error) {
+func (h *Header) Encode() ([]byte, error) {
 	//Encode header to bytes
 	bytes := bytes.Buffer{}
-	err := gob.NewEncoder(&bytes).Encode(b)
+	encoder := gob.NewEncoder(&bytes)
+	err := encoder.Encode(h)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +38,9 @@ func (b *Header) Encode() ([]byte, error) {
 func (b *Body) Encode() ([]byte, error) {
 	//Encode body to bytes
 	bytes := bytes.Buffer{}
-	err := gob.NewEncoder(&bytes).Encode(b)
+
+	encoder := gob.NewEncoder(&bytes)
+	err := encoder.Encode(b)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +49,8 @@ func (b *Body) Encode() ([]byte, error) {
 func (m *Message) Encode() ([]byte, error) {
 	//Encode message to bytes
 	bytes := bytes.Buffer{}
-	err := gob.NewEncoder(&bytes).Encode(m)
+	encoder := gob.NewEncoder(&bytes)
+	err := encoder.Encode(m)
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +58,7 @@ func (m *Message) Encode() ([]byte, error) {
 }
 
 func (m *Message) SignMessage(RSA RSAUtil) error {
+
 	//Calculate hash of body
 	bodyHasher := sha256.New()
 	//Encode Body struct to bytes

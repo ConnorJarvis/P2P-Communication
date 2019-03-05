@@ -9,17 +9,17 @@ import (
 )
 
 type Peer struct {
-	ID     string
-	IP     string
-	Port   int
-	Peers  []Peer
-	RSA    RSAUtil
-	Server net.UDPConn
+	ID            string
+	IP            string
+	Port          int
+	RSA           RSAUtil
+	server        net.UDPConn
+	parentCluster *Cluster
 }
 
 func (p *Peer) StopListening() error {
 	//Close UDPConn
-	err := p.Server.Close()
+	err := p.server.Close()
 	if err != nil {
 		return err
 	}
@@ -33,17 +33,17 @@ func (p *Peer) StartListening() error {
 		return err
 	}
 	//Assign UDPConn to Peer
-	p.Server = *u
+	p.server = *u
 
 	//Listen to incoming messages
 	go func() {
 
-		defer p.Server.Close()
+		defer p.server.Close()
 
 		for {
 			buf := make([]byte, 2048)
 			//Read data from connection
-			n, _, err := p.Server.ReadFrom(buf)
+			n, _, err := p.server.ReadFrom(buf)
 			if err != nil {
 				continue
 			}
@@ -75,6 +75,12 @@ func (p *Peer) HandleMessage(message []byte) error {
 		return err
 	}
 
+	switch m.Header.ID {
+	case 0:
+		p.HandleBootstrap(m)
+	case 1:
+		p.HandleNewPeers(m)
+	}
 	return nil
 }
 
@@ -106,7 +112,6 @@ func (p *Peer) InitializeRSAUtil(length int, Key *rsa.PrivateKey) error {
 }
 
 func (p *Peer) SendMessage(p2 Peer, m Message) error {
-
 	//Sign Message
 	err := m.SignMessage(p.RSA)
 	if err != nil {
@@ -117,16 +122,39 @@ func (p *Peer) SendMessage(p2 Peer, m Message) error {
 	if err != nil {
 		return err
 	}
+
 	//Prepare UDP Connection
 	conn, err := net.Dial("udp", p2.IP+":"+strconv.Itoa(p2.Port))
 	if err != nil {
 		return err
 	}
+
 	defer conn.Close()
 	//Write message to conn
 	_, err = conn.Write(messageBytes)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (p *Peer) HandleBootstrap(m Message) error {
+	newPeer := m.Body.Content.(Peer)
+	p.parentCluster.Peers[newPeer.ID] = newPeer
+	peers := make([]Peer, 0)
+	for _, peer := range p.parentCluster.Peers {
+		peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
+	}
+	M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
+	p.SendMessage(newPeer, M)
+	return nil
+}
+
+func (p *Peer) HandleNewPeers(m Message) error {
+	newPeers := m.Body.Content.([]Peer)
+	for i := 0; i < len(newPeers); i++ {
+		p.parentCluster.Peers[newPeers[i].ID] = newPeers[i]
 	}
 	return nil
 }
