@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 )
 
 func TestStart(t *testing.T) {
@@ -30,6 +31,7 @@ func TestBootstrap(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	time.Sleep(time.Second * 2)
 	C.Shutdown()
 	C2.Shutdown()
 }
