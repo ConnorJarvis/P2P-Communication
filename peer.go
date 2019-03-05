@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
+	"fmt"
 	"math/big"
 	"net"
 	"strconv"
@@ -151,7 +152,32 @@ func (p *Peer) HandleBootstrap(m Message) error {
 	}
 	M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
 	p.SendMessage(newPeer, M)
+	sentIDs := make(map[int]bool)
+	for i := 0; i < len(p.parentCluster.PeerIDs)-1; i++ {
+		indexID := 0
+		for {
+			index, err := rand.Int(rand.Reader, big.NewInt(int64(len(p.parentCluster.PeerIDs)-1)))
+			indexID = int(index.Int64())
+			if err != nil {
+				return err
+			}
+			if p.parentCluster.PeerIDs[indexID] != p.ID && sentIDs[indexID] == false {
+				sentIDs[indexID] = true
+				break
+			}
+		}
+		fmt.Println(p.parentCluster.Peers[m.Header.From].Port)
+		fmt.Println(p.Port)
+		fmt.Println("Shared new peer")
+		fmt.Println(p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]].Port)
+		peers := make([]Peer, 0)
+		for _, peer := range p.parentCluster.Peers {
+			peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
+		}
+		M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
+		p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
 
+	}
 	return nil
 }
 
@@ -165,8 +191,10 @@ func (p *Peer) HandleNewPeers(m Message) error {
 			changed = true
 		}
 	}
+	fmt.Println(changed)
 	if changed {
-		for i := 0; i < len(p.parentCluster.PeerIDs); i++ {
+		sentIDs := make(map[int]bool)
+		for i := 0; i < len(p.parentCluster.PeerIDs)-1; i++ {
 			indexID := 0
 			for {
 				index, err := rand.Int(rand.Reader, big.NewInt(int64(len(p.parentCluster.PeerIDs)-1)))
@@ -174,10 +202,15 @@ func (p *Peer) HandleNewPeers(m Message) error {
 				if err != nil {
 					return err
 				}
-				if p.parentCluster.PeerIDs[indexID] != p.ID {
+				if p.parentCluster.PeerIDs[indexID] != p.ID && sentIDs[indexID] == false {
+					sentIDs[indexID] = true
 					break
 				}
 			}
+			fmt.Println(p.parentCluster.Peers[m.Header.From].Port)
+			fmt.Println(p.Port)
+			fmt.Println("Shared new peer")
+			fmt.Println(p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]].Port)
 			peers := make([]Peer, 0)
 			for _, peer := range p.parentCluster.Peers {
 				peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
