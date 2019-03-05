@@ -113,7 +113,7 @@ func (p *Peer) SendMessage(p2 Peer, m Message) error {
 		return err
 	}
 	//Encode Message
-	messageBytes, err := m.EncodeMessage()
+	messageBytes, err := m.Encode()
 	if err != nil {
 		return err
 	}

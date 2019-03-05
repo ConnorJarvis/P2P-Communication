@@ -25,9 +25,9 @@ func TestStopListening(t *testing.T) {
 func TestHandleMessage(t *testing.T) {
 	P := Peer{IP: "", Port: 8080, ID: "1"}
 	P.InitializeRSAUtil(2048, nil)
-	m := Message{From: "Test", Body: "Hello"}
+	m := Message{Header: Header{ID: 0, From: "1"}, Body: Body{Content: "Hello"}}
 	m.SignMessage(P.RSA)
-	messageBytes, _ := m.EncodeMessage()
+	messageBytes, _ := m.Encode()
 	err := P.HandleMessage(messageBytes)
 	if err != nil {
 		t.Error(err)
@@ -64,7 +64,7 @@ func TestSendMessage(t *testing.T) {
 
 	P2 := Peer{IP: "", Port: 8081, ID: "2"}
 	P2.InitializeRSAUtil(2048, &R.Key)
-	m := Message{From: "Test", Body: "Hello"}
+	m := Message{Header: Header{ID: 0, From: "1"}, Body: Body{Content: "Hello"}}
 	err := P2.SendMessage(P, m)
 	if err != nil {
 		t.Error(err)
