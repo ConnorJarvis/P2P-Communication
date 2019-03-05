@@ -31,7 +31,13 @@ func TestBootstrap(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	C3 := Cluster{}
+	err = C3.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8081, RSA.Key)
+	if err != nil {
+		t.Error(err)
+	}
 	time.Sleep(time.Second * 2)
 	C.Shutdown()
 	C2.Shutdown()
+	C3.Shutdown()
 }
