@@ -31,6 +31,11 @@ func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int,
 	if err != nil {
 		return err
 	}
+	err = c.LocalPeer.StartGossip()
+	if err != nil {
+		return err
+	}
+
 	RemotePeer := Peer{IP: RemoteIP, Port: RemotePort}
 	RemotePeer.InitializeRSAUtil(2048, &Key)
 	if err != nil {
@@ -59,6 +64,10 @@ func (c *Cluster) Start(LocalIP string, LocalPort int, Key rsa.PrivateKey) error
 		return err
 	}
 	err = c.LocalPeer.StartListening()
+	if err != nil {
+		return err
+	}
+	err = c.LocalPeer.StartGossip()
 	if err != nil {
 		return err
 	}

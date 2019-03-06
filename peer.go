@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net"
 	"strconv"
+	"time"
 )
 
 type Peer struct {
@@ -89,6 +90,10 @@ func (p *Peer) HandleMessage(message []byte) error {
 	case 0:
 		p.HandleBootstrap(*decryptedMessage)
 	case 1:
+		p.HandleNewPeers(*decryptedMessage)
+	case 2:
+		p.HandleNewPeers(*decryptedMessage)
+	case 3:
 		p.HandleNewPeers(*decryptedMessage)
 	}
 	return nil
@@ -205,6 +210,18 @@ func (p *Peer) HandleNewPeers(m Message) error {
 			changed = true
 		}
 	}
+	if m.Header.ID == 3 {
+		return nil
+	}
+	if m.Header.ID == 2 {
+		peers := make([]Peer, 0)
+		for _, peer := range p.parentCluster.Peers {
+			peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
+		}
+		M := Message{Header: Header{ID: 3, From: p.ID}, Body: Body{Content: peers}}
+		p.SendMessage(*p.parentCluster.Peers[m.Header.From], M)
+		return nil
+	}
 	if changed {
 		sentIDs := make(map[int]bool)
 		peersToShare := len(p.parentCluster.PeerIDs) - 1
@@ -233,5 +250,33 @@ func (p *Peer) HandleNewPeers(m Message) error {
 
 		}
 	}
+	return nil
+}
+
+func (p *Peer) StartGossip() error {
+	go func() {
+		for {
+			if len(p.parentCluster.PeerIDs) != 1 {
+				indexID := 0
+				for {
+
+					index, _ := rand.Int(rand.Reader, big.NewInt(int64(len(p.parentCluster.PeerIDs)-1)))
+					indexID = int(index.Int64())
+
+					if p.parentCluster.PeerIDs[indexID] != p.ID {
+						break
+					}
+				}
+				peers := make([]Peer, 0)
+				for _, peer := range p.parentCluster.Peers {
+					peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
+				}
+				M := Message{Header: Header{ID: 2, From: p.ID}, Body: Body{Content: peers}}
+				p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
+			}
+
+			time.Sleep(time.Millisecond * 500)
+		}
+	}()
 	return nil
 }
