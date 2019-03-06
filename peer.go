@@ -18,6 +18,7 @@ type Peer struct {
 	RSA           *RSAUtil
 	server        *net.UDPConn
 	parentCluster *Cluster
+	Stopped       bool
 }
 
 func (p *Peer) StopListening() error {
@@ -26,6 +27,7 @@ func (p *Peer) StopListening() error {
 	if err != nil {
 		return err
 	}
+	p.Stopped = true
 	return nil
 }
 
@@ -44,6 +46,9 @@ func (p *Peer) StartListening() error {
 		defer p.server.Close()
 
 		for {
+			if p.Stopped == true {
+				break
+			}
 			buf := make([]byte, 2048)
 			//Read data from connection
 			n, _, err := p.server.ReadFrom(buf)
@@ -85,6 +90,7 @@ func (p *Peer) HandleMessage(message []byte) error {
 	if err != nil {
 		return err
 	}
+	p.parentCluster.LastSeenPeer[decryptedMessage.Header.From] = time.Now().UTC().Unix()
 
 	switch decryptedMessage.Header.ID {
 	case 0:
@@ -144,19 +150,15 @@ func (p *Peer) SendMessage(p2 Peer, m Message) error {
 	if err != nil {
 		return err
 	}
+	go func() {
+		//Prepare UDP Connection
+		conn, _ := net.Dial("udp", p2.IP+":"+strconv.Itoa(p2.Port))
 
-	//Prepare UDP Connection
-	conn, err := net.Dial("udp", p2.IP+":"+strconv.Itoa(p2.Port))
-	if err != nil {
-		return err
-	}
+		defer conn.Close()
+		//Write message to conn
+		_, _ = conn.Write(messageBytes)
 
-	defer conn.Close()
-	//Write message to conn
-	_, err = conn.Write(messageBytes)
-	if err != nil {
-		return err
-	}
+	}()
 
 	return nil
 }
@@ -256,6 +258,9 @@ func (p *Peer) HandleNewPeers(m Message) error {
 func (p *Peer) StartGossip() error {
 	go func() {
 		for {
+			if p.Stopped == true {
+				break
+			}
 			if len(p.parentCluster.PeerIDs) != 1 {
 				indexID := 0
 				for {
@@ -274,6 +279,7 @@ func (p *Peer) StartGossip() error {
 				M := Message{Header: Header{ID: 2, From: p.ID}, Body: Body{Content: peers}}
 				p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
 			}
+			p.parentCluster.AgeOutPeers()
 
 			time.Sleep(time.Millisecond * 500)
 		}

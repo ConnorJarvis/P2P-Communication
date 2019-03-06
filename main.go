@@ -2,8 +2,9 @@ package main
 
 import (
 	"encoding/gob"
-	"fmt"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func init() {
@@ -31,11 +32,13 @@ func main() {
 	C3 := Cluster{}
 	C3.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8081, RSA.Key)
 	time.Sleep(time.Second * 10)
-	// spew.Dump(C.Peers)
-	// spew.Dump(C2.Peers)
-	// spew.Dump(C3.Peers)
-	fmt.Println("hi")
+	C3.Shutdown()
 	time.Sleep(time.Second * 10)
+	spew.Dump(C.Peers)
+	spew.Dump(C2.Peers)
+	time.Sleep(time.Second * 70)
+	spew.Dump(&C.Peers)
+	spew.Dump(C2.Peers)
 	for {
 
 	}
