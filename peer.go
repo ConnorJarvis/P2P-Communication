@@ -63,25 +63,33 @@ func (p *Peer) HandleMessage(message []byte) error {
 	if err != nil {
 		return err
 	}
-	//Create decoder for bytes.Buffer to Message{}
+	//Create decoder for bytes.Buffer to EncryptedMessage{}
 	decoder := gob.NewDecoder(&messageBytes)
-	m := Message{}
+	m := EncryptedMessage{}
+
 	//Decode message
 	err = decoder.Decode(&m)
 	if err != nil {
 		return err
 	}
-	//Verify message
-	err = m.VerifyMessage(*p.RSA)
+
+	//Decrypt message
+	decryptedMessage, err := m.Decrypt(*p.RSA)
 	if err != nil {
 		return err
 	}
 
-	switch m.Header.ID {
+	//Verify message
+	err = decryptedMessage.VerifyMessage(*p.RSA)
+	if err != nil {
+		return err
+	}
+
+	switch decryptedMessage.Header.ID {
 	case 0:
-		p.HandleBootstrap(m)
+		p.HandleBootstrap(*decryptedMessage)
 	case 1:
-		p.HandleNewPeers(m)
+		p.HandleNewPeers(*decryptedMessage)
 	}
 	return nil
 }
@@ -119,8 +127,15 @@ func (p *Peer) SendMessage(p2 Peer, m Message) error {
 	if err != nil {
 		return err
 	}
+
+	//Encrypt Message
+	encryptedMessage, err := m.Encrypt(*p.RSA)
+	if err != nil {
+		return err
+	}
+
 	//Encode Message
-	messageBytes, err := m.Encode()
+	messageBytes, err := encryptedMessage.Encode()
 	if err != nil {
 		return err
 	}

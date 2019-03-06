@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -41,5 +43,33 @@ func TestVerifyMessage(t *testing.T) {
 	err := m.VerifyMessage(RSA)
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+func TestEncryptMessage(t *testing.T) {
+	RSA := RSAUtil{}
+	RSA.InitializeReader()
+	RSA.SetKeyLength(2048)
+	RSA.GenerateKey()
+	m := Message{Header: Header{ID: 0, From: "1"}, Body: Body{Content: "Hello"}}
+	_, err := m.Encrypt(RSA)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestDecryptMessage(t *testing.T) {
+	RSA := RSAUtil{}
+	RSA.InitializeReader()
+	RSA.SetKeyLength(2048)
+	RSA.GenerateKey()
+	m := Message{Header: Header{ID: 0, From: "1"}, Body: Body{Content: "Hello"}}
+	encryptedMessage, _ := m.Encrypt(RSA)
+	decryptedMessage, err := encryptedMessage.Decrypt(RSA)
+	if err != nil {
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(*decryptedMessage, m) {
+		t.Error(errors.New("Message did not decrypt properly"))
 	}
 }

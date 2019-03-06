@@ -16,6 +16,12 @@ type Message struct {
 	BodySignature   []byte
 }
 
+type EncryptedMessage struct {
+	Message []byte
+	Key     []byte
+	Nonce   []byte
+}
+
 type Header struct {
 	ID   int
 	From string
@@ -51,6 +57,17 @@ func (m *Message) Encode() ([]byte, error) {
 	bytes := bytes.Buffer{}
 	encoder := gob.NewEncoder(&bytes)
 	err := encoder.Encode(m)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.Bytes(), nil
+}
+
+func (em *EncryptedMessage) Encode() ([]byte, error) {
+	//Encode message to bytes
+	bytes := bytes.Buffer{}
+	encoder := gob.NewEncoder(&bytes)
+	err := encoder.Encode(em)
 	if err != nil {
 		return nil, err
 	}
@@ -125,4 +142,67 @@ func (m *Message) VerifyMessage(RSA RSAUtil) error {
 		return errors.New("Invalid From Signature")
 	}
 	return nil
+}
+
+func (m *EncryptedMessage) Decrypt(RSA RSAUtil) (*Message, error) {
+	key, err := RSA.Decrypt(m.Key)
+	if err != nil {
+		return nil, err
+	}
+	nonce, err := RSA.Decrypt(m.Nonce)
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := Decrypt(m.Message, key, nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	encryptedMessageBytes := bytes.Buffer{}
+	encryptedMessageBytes.Write(plaintext)
+	decoder := gob.NewDecoder(&encryptedMessageBytes)
+
+	encryptedMessage := Message{}
+	err = decoder.Decode(&encryptedMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	return &encryptedMessage, nil
+
+}
+
+func (m *Message) Encrypt(RSA RSAUtil) (*EncryptedMessage, error) {
+	key, err := GenerateAESKey(RSA.Reader)
+	if err != nil {
+		return nil, err
+	}
+	nonce, err := GenerateAESNonce(RSA.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	encryptedKey, err := RSA.Encrypt(key)
+	if err != nil {
+		return nil, err
+	}
+
+	encryptedNonce, err := RSA.Encrypt(nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	messageBytes := bytes.Buffer{}
+	encoder := gob.NewEncoder(&messageBytes)
+	err = encoder.Encode(m)
+	if err != nil {
+		return nil, err
+	}
+
+	encryptedMessage, err := Encrypt(messageBytes.Bytes(), key, nonce)
+	if err != nil {
+		return nil, err
+	}
+	return &EncryptedMessage{Message: encryptedMessage, Key: encryptedKey, Nonce: encryptedNonce}, nil
+
 }

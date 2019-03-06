@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"io"
 )
 
@@ -29,4 +30,23 @@ func (r *RSAUtil) GenerateKey() error {
 	}
 	r.Key = *privateKey
 	return nil
+}
+
+func (r *RSAUtil) Encrypt(data []byte) ([]byte, error) {
+
+	ciphertext, err := rsa.EncryptOAEP(sha256.New(), r.Reader, &r.Key.PublicKey, data, nil)
+	if err != nil {
+		return nil, err
+	}
+	return ciphertext, nil
+}
+
+func (r *RSAUtil) Decrypt(data []byte) ([]byte, error) {
+
+	plaintext, err := rsa.DecryptOAEP(sha256.New(), r.Reader, &r.Key, data, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
 }
