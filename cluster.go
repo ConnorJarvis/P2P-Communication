@@ -13,16 +13,23 @@ type Cluster struct {
 	LastSeenPeer      map[string]int64
 	PeerIDs           []string
 	LocalPeer         Peer
-	Values            map[string]interface{}
+	Values            map[string]*Value
 	PeersMutex        *sync.RWMutex
 	LastSeenPeerMutex *sync.RWMutex
 	ValuesMutex       *sync.RWMutex
+}
+
+type Value struct {
+	Modified               int64
+	ConflictResolutionMode int
+	Value                  map[string]interface{}
 }
 
 func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int, Key rsa.PrivateKey) error {
 	c.Peers = make(map[string]*Peer)
 	c.PeerIDs = make([]string, 0)
 	c.LastSeenPeer = make(map[string]int64)
+	c.Values = make(map[string]*Value)
 	c.PeersMutex = new(sync.RWMutex)
 	c.LastSeenPeerMutex = new(sync.RWMutex)
 	c.ValuesMutex = new(sync.RWMutex)
@@ -63,6 +70,7 @@ func (c *Cluster) Start(LocalIP string, LocalPort int, Key rsa.PrivateKey) error
 	c.Peers = make(map[string]*Peer)
 	c.PeerIDs = make([]string, 0)
 	c.LastSeenPeer = make(map[string]int64)
+	c.Values = make(map[string]*Value)
 	c.PeersMutex = new(sync.RWMutex)
 	c.LastSeenPeerMutex = new(sync.RWMutex)
 	c.ValuesMutex = new(sync.RWMutex)
@@ -116,5 +124,33 @@ func (c *Cluster) AgeOutPeers() error {
 			}
 		}
 	}
+	return nil
+}
+
+func (c *Cluster) ParseNewValues(values map[string]*Value) error {
+	c.ValuesMutex.Lock()
+	for key := range values {
+		value := values[key]
+		if c.Values[key] == nil {
+			c.Values[key] = value
+		} else if value.ConflictResolutionMode == 0 { //Use the newer value
+			if value.Modified > c.Values[key].Modified {
+				c.Values[key] = value
+			}
+		} else if value.ConflictResolutionMode == 1 { //Merge keeping newer values
+			if value.Modified > c.Values[key].Modified {
+				for subKey := range value.Value {
+					if c.Values[key].Value[subKey] == nil {
+						c.Values[key].Value[subKey] = value.Value[subKey]
+					} else {
+						c.Values[key].Value[subKey] = value.Value[subKey]
+					}
+				}
+				c.Values[key].Modified = value.Modified
+			}
+
+		}
+	}
+	c.ValuesMutex.Unlock()
 	return nil
 }

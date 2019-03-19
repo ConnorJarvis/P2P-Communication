@@ -26,8 +26,14 @@ type Header struct {
 	ID   int
 	From string
 }
+
 type Body struct {
 	Content interface{}
+}
+
+type Gossip struct {
+	Peers  []Peer
+	Values map[string]*Value
 }
 
 func (h *Header) Encode() ([]byte, error) {

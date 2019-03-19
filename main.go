@@ -15,6 +15,8 @@ func init() {
 	gob.Register(Body{})
 	gob.Register(EncryptedMessage{})
 	gob.Register(map[string]*Peer{})
+	gob.Register(map[string]Value{})
+	gob.Register(Gossip{})
 }
 
 func main() {
@@ -25,6 +27,9 @@ func main() {
 
 	C := Cluster{}
 	C.Start("127.0.0.1", 8080, RSA.Key)
+	value := make(map[string]interface{})
+	value["1"] = "Test"
+	C.Values["Test"] = &Value{Modified: time.Now().UnixNano(), ConflictResolutionMode: 2, Value: value}
 	time.Sleep(time.Second * 2)
 	C2 := Cluster{}
 	C2.Bootstrap("127.0.0.1", "127.0.0.1", 8081, 8080, RSA.Key)

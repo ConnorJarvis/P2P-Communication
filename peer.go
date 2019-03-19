@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/gob"
+	"fmt"
 	"math/big"
 	"net"
 	"strconv"
@@ -49,7 +50,7 @@ func (p *Peer) StartListening() error {
 			if p.Stopped == true {
 				break
 			}
-			buf := make([]byte, 2048)
+			buf := make([]byte, 65507)
 			//Read data from connection
 			n, _, err := p.server.ReadFrom(buf)
 			if err != nil {
@@ -135,12 +136,12 @@ func (p *Peer) InitializeRSAUtil(length int, Key *rsa.PrivateKey) error {
 }
 
 func (p *Peer) SendMessage(p2 Peer, m Message) error {
+
 	//Sign Message
 	err := m.SignMessage(*p.RSA)
 	if err != nil {
 		return err
 	}
-
 	//Encrypt Message
 	encryptedMessage, err := m.Encrypt(*p.RSA)
 	if err != nil {
@@ -152,13 +153,14 @@ func (p *Peer) SendMessage(p2 Peer, m Message) error {
 	if err != nil {
 		return err
 	}
+
 	go func() {
 		//Prepare UDP Connection
 		conn, _ := net.Dial("udp", p2.IP+":"+strconv.Itoa(p2.Port))
 
 		defer conn.Close()
 		//Write message to conn
-		_, _ = conn.Write(messageBytes)
+		_, err = conn.Write(messageBytes)
 
 	}()
 
@@ -177,42 +179,22 @@ func (p *Peer) HandleBootstrap(m Message) error {
 		peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 	}
 	p.parentCluster.PeersMutex.RUnlock()
-	M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
+	p.parentCluster.ValuesMutex.RLock()
+	M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: Gossip{Peers: peers, Values: p.parentCluster.Values}}}
+	p.parentCluster.ValuesMutex.RUnlock()
 	p.SendMessage(newPeer, M)
-	sentIDs := make(map[int]bool)
-	peersToShare := len(p.parentCluster.PeerIDs) - 1
-	if peersToShare > 5 {
-		peersToShare = 5
-	}
-	for i := 0; i < peersToShare; i++ {
-		indexID := 0
-		for {
-			index, err := rand.Int(rand.Reader, big.NewInt(int64(len(p.parentCluster.PeerIDs)-1)))
-			indexID = int(index.Int64())
-			if err != nil {
-				return err
-			}
-			if p.parentCluster.PeerIDs[indexID] != p.ID && sentIDs[indexID] == false {
-				sentIDs[indexID] = true
-				break
-			}
-		}
-		peers := make([]Peer, 0)
-		p.parentCluster.PeersMutex.RLock()
-		for _, peer := range p.parentCluster.Peers {
-			peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
-		}
-		M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
-		p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
-		p.parentCluster.PeersMutex.RUnlock()
-
-	}
 	return nil
 }
 
 func (p *Peer) HandleNewPeers(m Message) error {
-	newPeers := m.Body.Content.([]Peer)
+	gossip := m.Body.Content.(Gossip)
+	newPeers := gossip.Peers
 	changed := false
+	err := p.parentCluster.ParseNewValues(gossip.Values)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
 	p.parentCluster.PeersMutex.Lock()
 	for i := 0; i < len(newPeers); i++ {
 		if p.parentCluster.Peers[newPeers[i].ID] == nil {
@@ -231,8 +213,9 @@ func (p *Peer) HandleNewPeers(m Message) error {
 		for _, peer := range p.parentCluster.Peers {
 			peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 		}
-
-		M := Message{Header: Header{ID: 3, From: p.ID}, Body: Body{Content: peers}}
+		p.parentCluster.ValuesMutex.RLock()
+		M := Message{Header: Header{ID: 3, From: p.ID}, Body: Body{Content: Gossip{Peers: peers, Values: p.parentCluster.Values}}}
+		p.parentCluster.ValuesMutex.RUnlock()
 		p.SendMessage(*p.parentCluster.Peers[m.Header.From], M)
 		p.parentCluster.PeersMutex.RUnlock()
 		return nil
@@ -261,7 +244,9 @@ func (p *Peer) HandleNewPeers(m Message) error {
 			for _, peer := range p.parentCluster.Peers {
 				peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 			}
-			M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
+			p.parentCluster.ValuesMutex.RLock()
+			M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: Gossip{Peers: peers, Values: p.parentCluster.Values}}}
+			p.parentCluster.ValuesMutex.RUnlock()
 			p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
 			p.parentCluster.PeersMutex.RUnlock()
 
@@ -292,9 +277,14 @@ func (p *Peer) StartGossip() error {
 				for _, peer := range p.parentCluster.Peers {
 					peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 				}
-				M := Message{Header: Header{ID: 2, From: p.ID}, Body: Body{Content: peers}}
+				p.parentCluster.PeersMutex.RUnlock()
+				p.parentCluster.ValuesMutex.Lock()
+				M := Message{Header: Header{ID: 2, From: p.ID}, Body: Body{Content: Gossip{Peers: peers, Values: p.parentCluster.Values}}}
+				p.parentCluster.ValuesMutex.Unlock()
+				p.parentCluster.PeersMutex.RLock()
 				p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
 				p.parentCluster.PeersMutex.RUnlock()
+
 			}
 			p.parentCluster.AgeOutPeers()
 
