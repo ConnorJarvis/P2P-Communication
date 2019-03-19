@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/gob"
+	"fmt"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -14,6 +15,7 @@ func init() {
 	gob.Register(Peer{})
 	gob.Register(Body{})
 	gob.Register(EncryptedMessage{})
+	gob.Register(ChunkRequest{})
 	gob.Register(map[string]*Peer{})
 	gob.Register(map[string]Value{})
 	gob.Register(Gossip{})
@@ -26,24 +28,33 @@ func main() {
 	RSA.GenerateKey()
 
 	C := Cluster{}
-	C.Start("127.0.0.1", 8080, RSA.Key)
-	value := make(map[string]interface{})
-	value["1"] = "Test"
-	C.Values["Test"] = &Value{Modified: time.Now().UnixNano(), ConflictResolutionMode: 2, Value: value}
+	C.Start("127.0.0.1", 8080, RSA.Key, 1)
+	id, _ := C.AddFile("./files/1.pdf")
 	time.Sleep(time.Second * 2)
 	C2 := Cluster{}
-	C2.Bootstrap("127.0.0.1", "127.0.0.1", 8081, 8080, RSA.Key)
+	C2.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8080, RSA.Key, 1)
 	time.Sleep(time.Second * 1)
 	C3 := Cluster{}
-	C3.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8081, RSA.Key)
+	C3.Bootstrap("127.0.0.1", "127.0.0.1", 8084, 8082, RSA.Key, 1)
+	time.Sleep(time.Second * 5)
+	fmt.Println(id)
+	err := C3.DownloadFile(id, "./files/2.pdf", "./tmp")
+	if err != nil {
+		fmt.Println(err)
+	}
 	time.Sleep(time.Second * 10)
-	C3.Shutdown()
+	spew.Dump(C.Values[id].Value)
+	spew.Dump(C2.Values[id].Value)
+	spew.Dump(C3.Values[id].Value)
+	err = C2.DownloadFile(id, "./files/3.pdf", "./tmp")
+	if err != nil {
+		fmt.Println(err)
+	}
 	time.Sleep(time.Second * 10)
-	spew.Dump(C.Peers)
-	spew.Dump(C2.Peers)
-	time.Sleep(time.Second * 70)
-	spew.Dump(&C.Peers)
-	spew.Dump(C2.Peers)
+	spew.Dump(C.Values[id].Value)
+	spew.Dump(C2.Values[id].Value)
+	spew.Dump(C3.Values[id].Value)
+	time.Sleep(time.Second * 10)
 	for {
 
 	}

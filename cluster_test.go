@@ -1,12 +1,13 @@
 package main
 
 import (
+	"crypto/sha1"
 	"errors"
+	"io"
+	"os"
 	"reflect"
 	"testing"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 func TestStart(t *testing.T) {
@@ -16,7 +17,7 @@ func TestStart(t *testing.T) {
 	RSA.SetKeyLength(2048)
 	RSA.GenerateKey()
 	C := Cluster{}
-	err := C.Start("127.0.0.1", 8080, RSA.Key)
+	err := C.Start("127.0.0.1", 8080, RSA.Key, 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -29,36 +30,38 @@ func TestBootstrap(t *testing.T) {
 	RSA.SetKeyLength(2048)
 	RSA.GenerateKey()
 	C := Cluster{}
-	C.Start("127.0.0.1", 8080, RSA.Key)
-	value2 := make(map[string]interface{})
-	value2["1"] = "Test"
-	modified1 := time.Now().UnixNano()
-	value1 := &Value{Modified: modified1, ConflictResolutionMode: 1, Value: value2}
-	C.Values["Test"] = value1
-	spew.Dump()
+	C.Start("127.0.0.1", 8080, RSA.Key, 1)
+	id, _ := C.AddFile("./go.mod")
 	time.Sleep(time.Second * 1)
 	C2 := Cluster{}
-	err := C2.Bootstrap("127.0.0.1", "127.0.0.1", 8081, 8080, RSA.Key)
+	err := C2.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8080, RSA.Key, 1)
 	if err != nil {
 		t.Error(err)
 	}
 	time.Sleep(time.Second * 1)
 	C3 := Cluster{}
-	err = C3.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8081, RSA.Key)
-	value3 := make(map[string]interface{})
-	value3["1"] = "Test2"
-	modified2 := time.Now().UnixNano()
-	value4 := &Value{Modified: modified2, ConflictResolutionMode: 1, Value: value3}
-	C3.Values["Test"] = value4
+	err = C3.Bootstrap("127.0.0.1", "127.0.0.1", 8084, 8082, RSA.Key, 1)
 	if err != nil {
 		t.Error(err)
 	}
-
-	time.Sleep(time.Second * 3)
-	if !reflect.DeepEqual(C.Values, C2.Values) {
-		t.Error(errors.New("Values did not propagate"))
+	time.Sleep(time.Second * 5)
+	err = C3.DownloadFile(id, "./go2.mod", "./tmp")
+	if err != nil {
+		t.Error(errors.New("Failed to download"))
 	}
-	if !reflect.DeepEqual(C2.Values, C3.Values) {
+	time.Sleep(time.Second * 3)
+	file1, _ := os.Open("./go.mod")
+	h1 := sha1.New()
+	io.Copy(h1, file1)
+
+	file2, _ := os.Open("./go2.mod")
+	h2 := sha1.New()
+	io.Copy(h2, file2)
+	os.Remove("./go2.mod")
+	if !reflect.DeepEqual(h1.Sum(nil), h2.Sum(nil)) {
+		t.Error(errors.New("File did not transfer properly"))
+	}
+	if C.Values[id] == nil || C2.Values[id] == nil || C3.Values[id] == nil {
 		t.Error(errors.New("Values did not propagate"))
 	}
 

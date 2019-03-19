@@ -2,9 +2,11 @@ package main
 
 import (
 	"crypto/rsa"
+	"errors"
 	"sync"
 	"time"
 
+	filetransfer "github.com/ConnorJarvis/FileTransfer"
 	"github.com/google/uuid"
 )
 
@@ -17,19 +19,25 @@ type Cluster struct {
 	PeersMutex        *sync.RWMutex
 	LastSeenPeerMutex *sync.RWMutex
 	ValuesMutex       *sync.RWMutex
+	MaxConnections    int
+	DownloadQueue     chan ChunkRequest
 }
 
 type Value struct {
 	Modified               int64
 	ConflictResolutionMode int
+	File                   *filetransfer.File
+	Wanted                 bool
 	Value                  map[string]interface{}
 }
 
-func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int, Key rsa.PrivateKey) error {
+func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int, Key rsa.PrivateKey, MaxConnections int) error {
+	c.MaxConnections = MaxConnections
 	c.Peers = make(map[string]*Peer)
 	c.PeerIDs = make([]string, 0)
 	c.LastSeenPeer = make(map[string]int64)
 	c.Values = make(map[string]*Value)
+	c.DownloadQueue = make(chan ChunkRequest, 100000)
 	c.PeersMutex = new(sync.RWMutex)
 	c.LastSeenPeerMutex = new(sync.RWMutex)
 	c.ValuesMutex = new(sync.RWMutex)
@@ -49,6 +57,11 @@ func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int,
 		return err
 	}
 	err = c.LocalPeer.StartGossip()
+	if err != nil {
+		return err
+	}
+
+	err = c.LocalPeer.StartDownloaders()
 	if err != nil {
 		return err
 	}
@@ -66,11 +79,13 @@ func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int,
 	return nil
 }
 
-func (c *Cluster) Start(LocalIP string, LocalPort int, Key rsa.PrivateKey) error {
+func (c *Cluster) Start(LocalIP string, LocalPort int, Key rsa.PrivateKey, MaxConnections int) error {
+	c.MaxConnections = MaxConnections
 	c.Peers = make(map[string]*Peer)
 	c.PeerIDs = make([]string, 0)
 	c.LastSeenPeer = make(map[string]int64)
 	c.Values = make(map[string]*Value)
+	c.DownloadQueue = make(chan ChunkRequest, 100000)
 	c.PeersMutex = new(sync.RWMutex)
 	c.LastSeenPeerMutex = new(sync.RWMutex)
 	c.ValuesMutex = new(sync.RWMutex)
@@ -90,6 +105,10 @@ func (c *Cluster) Start(LocalIP string, LocalPort int, Key rsa.PrivateKey) error
 		return err
 	}
 	err = c.LocalPeer.StartGossip()
+	if err != nil {
+		return err
+	}
+	err = c.LocalPeer.StartDownloaders()
 	if err != nil {
 		return err
 	}
@@ -132,6 +151,9 @@ func (c *Cluster) ParseNewValues(values map[string]*Value) error {
 	for key := range values {
 		value := values[key]
 		if c.Values[key] == nil {
+			value.File.AvailableChunks = 0
+			value.File.ChunkAvailability = make([]bool, int(value.File.NumberOfChunks))
+			value.Wanted = false
 			c.Values[key] = value
 		} else if value.ConflictResolutionMode == 0 { //Use the newer value
 			if value.Modified > c.Values[key].Modified {
@@ -152,5 +174,41 @@ func (c *Cluster) ParseNewValues(values map[string]*Value) error {
 		}
 	}
 	c.ValuesMutex.Unlock()
+	return nil
+}
+
+func (c *Cluster) AddFile(filePath string) (string, error) {
+	file, err := filetransfer.InitializeFromFile(filePath)
+	if err != nil {
+		return "", err
+	}
+	value := make(map[string]interface{})
+	value[c.LocalPeer.ID] = file.NumberOfChunks
+	v := Value{Modified: time.Now().UnixNano(), ConflictResolutionMode: 1, File: file, Value: value}
+	c.ValuesMutex.Lock()
+	c.Values[file.ID] = &v
+	c.ValuesMutex.Unlock()
+	return file.ID, nil
+}
+
+func (c *Cluster) DownloadFile(id, filePath, temporaryPath string) error {
+	c.ValuesMutex.RLock()
+	if c.Values[id].Wanted == true || c.Values[id].File.AvailableChunks == c.Values[id].File.NumberOfChunks {
+		c.ValuesMutex.RUnlock()
+		return errors.New("File is already downloading or downloaded")
+	}
+	err := c.Values[id].File.InitializeFile(filePath, temporaryPath)
+	if err != nil {
+		return err
+	}
+	c.ValuesMutex.RUnlock()
+
+	c.ValuesMutex.Lock()
+	c.Values[id].Wanted = true
+	for i := 0; i < c.Values[id].File.NumberOfChunks; i++ {
+		c.DownloadQueue <- ChunkRequest{ID: id, Index: i}
+	}
+	c.ValuesMutex.Unlock()
+
 	return nil
 }

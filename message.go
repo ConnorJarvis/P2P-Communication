@@ -36,6 +36,11 @@ type Gossip struct {
 	Values map[string]*Value
 }
 
+type ChunkRequest struct {
+	ID    string
+	Index int
+}
+
 func (h *Header) Encode() ([]byte, error) {
 	//Encode header to bytes
 	bytes := bytes.Buffer{}
