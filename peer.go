@@ -90,7 +90,9 @@ func (p *Peer) HandleMessage(message []byte) error {
 	if err != nil {
 		return err
 	}
+	p.parentCluster.LastSeenPeerMutex.Lock()
 	p.parentCluster.LastSeenPeer[decryptedMessage.Header.From] = time.Now().UTC().Unix()
+	p.parentCluster.LastSeenPeerMutex.Unlock()
 
 	switch decryptedMessage.Header.ID {
 	case 0:
@@ -165,12 +167,16 @@ func (p *Peer) SendMessage(p2 Peer, m Message) error {
 
 func (p *Peer) HandleBootstrap(m Message) error {
 	newPeer := m.Body.Content.(Peer)
+	p.parentCluster.PeersMutex.Lock()
 	p.parentCluster.Peers[newPeer.ID] = &newPeer
+	p.parentCluster.PeersMutex.Unlock()
 	p.parentCluster.PeerIDs = append(p.parentCluster.PeerIDs, newPeer.ID)
 	peers := make([]Peer, 0)
+	p.parentCluster.PeersMutex.RLock()
 	for _, peer := range p.parentCluster.Peers {
 		peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 	}
+	p.parentCluster.PeersMutex.RUnlock()
 	M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
 	p.SendMessage(newPeer, M)
 	sentIDs := make(map[int]bool)
@@ -192,11 +198,13 @@ func (p *Peer) HandleBootstrap(m Message) error {
 			}
 		}
 		peers := make([]Peer, 0)
+		p.parentCluster.PeersMutex.RLock()
 		for _, peer := range p.parentCluster.Peers {
 			peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 		}
 		M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
 		p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
+		p.parentCluster.PeersMutex.RUnlock()
 
 	}
 	return nil
@@ -205,6 +213,7 @@ func (p *Peer) HandleBootstrap(m Message) error {
 func (p *Peer) HandleNewPeers(m Message) error {
 	newPeers := m.Body.Content.([]Peer)
 	changed := false
+	p.parentCluster.PeersMutex.Lock()
 	for i := 0; i < len(newPeers); i++ {
 		if p.parentCluster.Peers[newPeers[i].ID] == nil {
 			p.parentCluster.Peers[newPeers[i].ID] = &newPeers[i]
@@ -212,16 +221,20 @@ func (p *Peer) HandleNewPeers(m Message) error {
 			changed = true
 		}
 	}
+	p.parentCluster.PeersMutex.Unlock()
 	if m.Header.ID == 3 {
 		return nil
 	}
 	if m.Header.ID == 2 {
 		peers := make([]Peer, 0)
+		p.parentCluster.PeersMutex.RLock()
 		for _, peer := range p.parentCluster.Peers {
 			peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 		}
+
 		M := Message{Header: Header{ID: 3, From: p.ID}, Body: Body{Content: peers}}
 		p.SendMessage(*p.parentCluster.Peers[m.Header.From], M)
+		p.parentCluster.PeersMutex.RUnlock()
 		return nil
 	}
 	if changed {
@@ -244,11 +257,13 @@ func (p *Peer) HandleNewPeers(m Message) error {
 				}
 			}
 			peers := make([]Peer, 0)
+			p.parentCluster.PeersMutex.RLock()
 			for _, peer := range p.parentCluster.Peers {
 				peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 			}
 			M := Message{Header: Header{ID: 1, From: p.ID}, Body: Body{Content: peers}}
 			p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
+			p.parentCluster.PeersMutex.RUnlock()
 
 		}
 	}
@@ -273,11 +288,13 @@ func (p *Peer) StartGossip() error {
 					}
 				}
 				peers := make([]Peer, 0)
+				p.parentCluster.PeersMutex.RLock()
 				for _, peer := range p.parentCluster.Peers {
 					peers = append(peers, Peer{ID: peer.ID, IP: peer.IP, Port: peer.Port})
 				}
 				M := Message{Header: Header{ID: 2, From: p.ID}, Body: Body{Content: peers}}
 				p.SendMessage(*p.parentCluster.Peers[p.parentCluster.PeerIDs[indexID]], M)
+				p.parentCluster.PeersMutex.RUnlock()
 			}
 			p.parentCluster.AgeOutPeers()
 

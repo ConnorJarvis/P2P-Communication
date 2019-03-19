@@ -2,23 +2,30 @@ package main
 
 import (
 	"crypto/rsa"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 type Cluster struct {
-	Peers        map[string]*Peer
-	LastSeenPeer map[string]int64
-	PeerIDs      []string
-	LocalPeer    Peer
-	Values       map[string]string
+	Peers             map[string]*Peer
+	LastSeenPeer      map[string]int64
+	PeerIDs           []string
+	LocalPeer         Peer
+	Values            map[string]interface{}
+	PeersMutex        *sync.RWMutex
+	LastSeenPeerMutex *sync.RWMutex
+	ValuesMutex       *sync.RWMutex
 }
 
 func (c *Cluster) Bootstrap(LocalIP, RemoteIP string, LocalPort, RemotePort int, Key rsa.PrivateKey) error {
 	c.Peers = make(map[string]*Peer)
 	c.PeerIDs = make([]string, 0)
 	c.LastSeenPeer = make(map[string]int64)
+	c.PeersMutex = new(sync.RWMutex)
+	c.LastSeenPeerMutex = new(sync.RWMutex)
+	c.ValuesMutex = new(sync.RWMutex)
 	uuid, err := uuid.NewUUID()
 	if err != nil {
 		return err
@@ -56,6 +63,9 @@ func (c *Cluster) Start(LocalIP string, LocalPort int, Key rsa.PrivateKey) error
 	c.Peers = make(map[string]*Peer)
 	c.PeerIDs = make([]string, 0)
 	c.LastSeenPeer = make(map[string]int64)
+	c.PeersMutex = new(sync.RWMutex)
+	c.LastSeenPeerMutex = new(sync.RWMutex)
+	c.ValuesMutex = new(sync.RWMutex)
 	uuid, err := uuid.NewUUID()
 	if err != nil {
 		return err
@@ -87,10 +97,18 @@ func (c *Cluster) Shutdown() error {
 }
 
 func (c *Cluster) AgeOutPeers() error {
-	for i := range c.LastSeenPeer {
-		if time.Now().UTC().Unix()-c.LastSeenPeer[i] > 60 {
+	c.LastSeenPeerMutex.RLock()
+	lastSeenPeer := c.LastSeenPeer
+	c.LastSeenPeerMutex.RUnlock()
+	for i := range lastSeenPeer {
+		if time.Now().UTC().Unix()-lastSeenPeer[i] > 60 {
+			c.LastSeenPeerMutex.Lock()
 			delete(c.LastSeenPeer, i)
+			c.LastSeenPeerMutex.Unlock()
+
+			c.PeersMutex.Lock()
 			delete(c.Peers, i)
+			c.PeersMutex.Unlock()
 			for index := 0; index < len(c.PeerIDs); index++ {
 				if c.PeerIDs[index] == i {
 					c.PeerIDs = append(c.PeerIDs[:index], c.PeerIDs[index+1:]...)
