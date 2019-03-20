@@ -14,6 +14,10 @@ github.com/ConnorJarvis/FileTransfer v0.0.0-20190319213005-a22a68fd5a5f h1:Zfv1s
 github.com/ConnorJarvis/FileTransfer v0.0.0-20190319213005-a22a68fd5a5f/go.mod h1:jEqypMsoVQdOm6ztCGcBq/hSEj/Sy/EfgiwfOEaxucI=
 github.com/ConnorJarvis/FileTransfer v0.0.0-20190319214312-4fbbd2c53a83 h1:YCyipC1HKy2e3NYDnu0fzJXE38ZB/otXfsy01c31zx8=
 github.com/ConnorJarvis/FileTransfer v0.0.0-20190319214312-4fbbd2c53a83/go.mod h1:jEqypMsoVQdOm6ztCGcBq/hSEj/Sy/EfgiwfOEaxucI=
+github.com/ConnorJarvis/FileTransfer v0.0.0-20190320001237-032c61cdb120 h1:Tr/B317gAPfGBdbKwYQWwMp91ogS/2/KKvHGLRtUwmQ=
+github.com/ConnorJarvis/FileTransfer v0.0.0-20190320001237-032c61cdb120/go.mod h1:jEqypMsoVQdOm6ztCGcBq/hSEj/Sy/EfgiwfOEaxucI=
+github.com/ConnorJarvis/FileTransfer v0.0.0-20190320001450-f78e6011e29f h1:jE1PhTdo6/cuzz+LV2n71RfvvJmT6OhO6hl3+XkT2BE=
+github.com/ConnorJarvis/FileTransfer v0.0.0-20190320001450-f78e6011e29f/go.mod h1:jEqypMsoVQdOm6ztCGcBq/hSEj/Sy/EfgiwfOEaxucI=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/google/uuid v1.1.1 h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=

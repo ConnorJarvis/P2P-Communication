@@ -17,3 +17,6 @@ files/3.pdf
 go.sum
 go.sum
 *.sum
+tmp/*
+tmp2/*
+files/*

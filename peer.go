@@ -380,7 +380,7 @@ func (p *Peer) HandleFileMessage(c net.Conn) error {
 		fmt.Println(err)
 		return err
 	}
-
+	c.Close()
 	return nil
 }
 
@@ -424,7 +424,7 @@ func (p *Peer) Downloader() error {
 		p.parentCluster.Peers[lowestActivePeer.ID] = peer
 		p.parentCluster.PeersMutex.Unlock()
 	}
-	return nil
+
 }
 
 func (p *Peer) SendFileMessage(p2 Peer, m Message) error {
@@ -463,15 +463,12 @@ func (p *Peer) SendFileMessage(p2 Peer, m Message) error {
 	}
 	p.parentCluster.ValuesMutex.Lock()
 	chunkRequest := m.Body.Content.(ChunkRequest)
-	err = p.parentCluster.Values[chunkRequest.ID].File.WriteChunk(chunkRequest.Index, b.Bytes())
-	if err != nil {
-		return err
-	}
+	go p.parentCluster.Values[chunkRequest.ID].File.WriteChunk(chunkRequest.Index, b.Bytes())
 	if p.parentCluster.Values[chunkRequest.ID].File.AvailableChunks == p.parentCluster.Values[chunkRequest.ID].File.NumberOfChunks {
 		p.parentCluster.Values[chunkRequest.ID].Value[p.ID] = p.parentCluster.Values[chunkRequest.ID].File.NumberOfChunks
 		p.parentCluster.Values[chunkRequest.ID].Modified = time.Now().UnixNano()
 	}
 	p.parentCluster.ValuesMutex.Unlock()
-
+	conn.Close()
 	return nil
 }

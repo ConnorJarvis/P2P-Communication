@@ -11,5 +11,6 @@ install:
 
 script:
 - go get github.com/ConnorJarvis/P2P-Communication
+- mkdir tmp
 - go test -v -covermode=count -coverprofile=coverage.out
 - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $repo_token
