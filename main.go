@@ -2,10 +2,7 @@ package main
 
 import (
 	"encoding/gob"
-	"fmt"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 func init() {
@@ -29,7 +26,6 @@ func main() {
 
 	C := Cluster{}
 	C.Start("127.0.0.1", 8080, RSA.Key, 1)
-	id, _ := C.AddFile("./files/ubuntu-18.04.1-desktop-amd64.iso")
 	time.Sleep(time.Second * 2)
 	C2 := Cluster{}
 	C2.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8080, RSA.Key, 1)
@@ -37,20 +33,6 @@ func main() {
 	C3 := Cluster{}
 	C3.Bootstrap("127.0.0.1", "127.0.0.1", 8084, 8082, RSA.Key, 1)
 	time.Sleep(time.Second * 5)
-	fmt.Println(id)
-	err := C3.DownloadFile(id, "./files/2.iso", "./tmp")
-	if err != nil {
-		fmt.Println(err)
-	}
-	time.Sleep(time.Second * 50)
-	spew.Dump(C.Values[id].Value)
-	spew.Dump(C2.Values[id].Value)
-	spew.Dump(C3.Values[id].Value)
-
-	time.Sleep(time.Second * 10)
-	spew.Dump(C.Values[id].Value)
-	spew.Dump(C2.Values[id].Value)
-	spew.Dump(C3.Values[id].Value)
 	time.Sleep(time.Second * 500)
 	for {
 

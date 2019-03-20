@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"encoding/gob"
 	"fmt"
-	"io"
 	"math/big"
 	"net"
 	"strconv"
@@ -14,25 +13,18 @@ import (
 )
 
 type Peer struct {
-	ID              string
-	IP              string
-	Port            int
-	RSA             *RSAUtil
-	server          *net.UDPConn
-	fileServer      *net.TCPListener
-	parentCluster   *Cluster
-	activeDownloads int
-	Stopped         bool
+	ID            string
+	IP            string
+	Port          int
+	RSA           *RSAUtil
+	server        *net.UDPConn
+	parentCluster *Cluster
+	Stopped       bool
 }
 
 func (p *Peer) StopListening() error {
 	//Close UDPConn
 	err := p.server.Close()
-	if err != nil {
-		return err
-	}
-	//Close TCPListener
-	err = p.fileServer.Close()
 	if err != nil {
 		return err
 	}
@@ -67,26 +59,26 @@ func (p *Peer) StartListening() error {
 		}
 	}()
 
-	t, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(p.IP), Port: p.Port + 1})
-	if err != nil {
-		return err
-	}
-	p.fileServer = t
+	// t, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.ParseIP(p.IP), Port: p.Port + 1})
+	// if err != nil {
+	// 	return err
+	// }
+	// p.fileServer = t
 
-	go func() {
-		defer p.fileServer.Close()
-		for {
-			if p.Stopped == true {
-				break
-			}
+	// go func() {
+	// 	defer p.fileServer.Close()
+	// 	for {
+	// 		if p.Stopped == true {
+	// 			break
+	// 		}
 
-			conn, err := p.fileServer.Accept()
-			if err != nil {
-				continue
-			}
-			go p.HandleFileMessage(conn)
-		}
-	}()
+	// 		conn, err := p.fileServer.Accept()
+	// 		if err != nil {
+	// 			continue
+	// 		}
+	// 		go p.HandleFileMessage(conn)
+	// 	}
+	// }()
 
 	return nil
 }
@@ -322,153 +314,153 @@ func (p *Peer) StartGossip() error {
 	return nil
 }
 
-func (p *Peer) HandleFileMessage(c net.Conn) error {
-	message := make([]byte, 2048)
-	_, err := c.Read(message)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	//Fill bytes.Buffer with message
-	messageBytes := bytes.Buffer{}
-	_, err = messageBytes.Write(message)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	//Create decoder for bytes.Buffer to EncryptedMessage{}
-	decoder := gob.NewDecoder(&messageBytes)
-	m := EncryptedMessage{}
+// func (p *Peer) HandleFileMessage(c net.Conn) error {
+// 	message := make([]byte, 2048)
+// 	_, err := c.Read(message)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return err
+// 	}
+// 	//Fill bytes.Buffer with message
+// 	messageBytes := bytes.Buffer{}
+// 	_, err = messageBytes.Write(message)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return err
+// 	}
+// 	//Create decoder for bytes.Buffer to EncryptedMessage{}
+// 	decoder := gob.NewDecoder(&messageBytes)
+// 	m := EncryptedMessage{}
 
-	//Decode message
-	err = decoder.Decode(&m)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
+// 	//Decode message
+// 	err = decoder.Decode(&m)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return err
+// 	}
 
-	//Decrypt message
-	decryptedMessage, err := m.Decrypt(*p.RSA)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
+// 	//Decrypt message
+// 	decryptedMessage, err := m.Decrypt(*p.RSA)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return err
+// 	}
 
-	//Verify message
-	err = decryptedMessage.VerifyMessage(*p.RSA)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
+// 	//Verify message
+// 	err = decryptedMessage.VerifyMessage(*p.RSA)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return err
+// 	}
 
-	p.parentCluster.LastSeenPeerMutex.Lock()
-	p.parentCluster.LastSeenPeer[decryptedMessage.Header.From] = time.Now().UTC().Unix()
-	p.parentCluster.LastSeenPeerMutex.Unlock()
-	chunkRequest := decryptedMessage.Body.Content.(ChunkRequest)
-	fileID := chunkRequest.ID
-	chunkIndex := chunkRequest.Index
+// 	p.parentCluster.LastSeenPeerMutex.Lock()
+// 	p.parentCluster.LastSeenPeer[decryptedMessage.Header.From] = time.Now().UTC().Unix()
+// 	p.parentCluster.LastSeenPeerMutex.Unlock()
+// 	chunkRequest := decryptedMessage.Body.Content.(ChunkRequest)
+// 	fileID := chunkRequest.ID
+// 	chunkIndex := chunkRequest.Index
 
-	chunkBytes, err := p.parentCluster.Values[fileID].File.ReadChunk(chunkIndex)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
+// 	chunkBytes, err := p.parentCluster.Values[fileID].File.ReadChunk(chunkIndex)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return err
+// 	}
 
-	writer := io.Writer(c)
-	_, err = writer.Write(chunkBytes)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	c.Close()
-	return nil
-}
+// 	writer := io.Writer(c)
+// 	_, err = writer.Write(chunkBytes)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return err
+// 	}
+// 	c.Close()
+// 	return nil
+// }
 
-func (p *Peer) StartDownloaders() error {
-	for i := 0; i < p.parentCluster.MaxConnections; i++ {
-		go p.Downloader()
-	}
-	return nil
-}
+// func (p *Peer) StartDownloaders() error {
+// 	for i := 0; i < p.parentCluster.MaxConnections; i++ {
+// 		go p.Downloader()
+// 	}
+// 	return nil
+// }
 
-func (p *Peer) Downloader() error {
-	for {
-		request := <-p.parentCluster.DownloadQueue
-		M := Message{Header: Header{ID: 4, From: p.ID}, Body: Body{Content: request}}
+// func (p *Peer) Downloader() error {
+// 	for {
+// 		request := <-p.parentCluster.DownloadQueue
+// 		M := Message{Header: Header{ID: 4, From: p.ID}, Body: Body{Content: request}}
 
-		p.parentCluster.ValuesMutex.RLock()
-		peers := p.parentCluster.Values[request.ID].Value
-		p.parentCluster.ValuesMutex.RUnlock()
-		lowestActiveDownloads := 0
-		var lowestActivePeer Peer
+// 		p.parentCluster.ValuesMutex.RLock()
+// 		peers := p.parentCluster.Values[request.ID].Value
+// 		p.parentCluster.ValuesMutex.RUnlock()
+// 		lowestActiveDownloads := 0
+// 		var lowestActivePeer Peer
 
-		for key := range peers {
-			p.parentCluster.PeersMutex.RLock()
-			if p.parentCluster.Peers[key].activeDownloads <= lowestActiveDownloads {
-				lowestActivePeer = *p.parentCluster.Peers[key]
-			}
-			p.parentCluster.PeersMutex.RUnlock()
-		}
-		lowestActivePeer.activeDownloads++
+// 		for key := range peers {
+// 			p.parentCluster.PeersMutex.RLock()
+// 			if p.parentCluster.Peers[key].activeDownloads <= lowestActiveDownloads {
+// 				lowestActivePeer = *p.parentCluster.Peers[key]
+// 			}
+// 			p.parentCluster.PeersMutex.RUnlock()
+// 		}
+// 		lowestActivePeer.activeDownloads++
 
-		p.parentCluster.PeersMutex.Lock()
-		p.parentCluster.Peers[lowestActivePeer.ID] = &lowestActivePeer
-		p.parentCluster.PeersMutex.Unlock()
-		err := p.SendFileMessage(lowestActivePeer, M)
-		if err != nil {
-			fmt.Println(err)
-		}
-		p.parentCluster.PeersMutex.Lock()
-		peer := p.parentCluster.Peers[lowestActivePeer.ID]
-		peer.activeDownloads--
-		p.parentCluster.Peers[lowestActivePeer.ID] = peer
-		p.parentCluster.PeersMutex.Unlock()
-	}
+// 		p.parentCluster.PeersMutex.Lock()
+// 		p.parentCluster.Peers[lowestActivePeer.ID] = &lowestActivePeer
+// 		p.parentCluster.PeersMutex.Unlock()
+// 		err := p.SendFileMessage(lowestActivePeer, M)
+// 		if err != nil {
+// 			fmt.Println(err)
+// 		}
+// 		p.parentCluster.PeersMutex.Lock()
+// 		peer := p.parentCluster.Peers[lowestActivePeer.ID]
+// 		peer.activeDownloads--
+// 		p.parentCluster.Peers[lowestActivePeer.ID] = peer
+// 		p.parentCluster.PeersMutex.Unlock()
+// 	}
 
-}
+// }
 
-func (p *Peer) SendFileMessage(p2 Peer, m Message) error {
+// func (p *Peer) SendFileMessage(p2 Peer, m Message) error {
 
-	//Sign Message
-	err := m.SignMessage(*p.RSA)
-	if err != nil {
-		return err
-	}
-	//Encrypt Message
-	encryptedMessage, err := m.Encrypt(*p.RSA)
-	if err != nil {
-		return err
-	}
+// 	//Sign Message
+// 	err := m.SignMessage(*p.RSA)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	//Encrypt Message
+// 	encryptedMessage, err := m.Encrypt(*p.RSA)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	//Encode Message
-	messageBytes, err := encryptedMessage.Encode()
-	if err != nil {
-		return err
-	}
+// 	//Encode Message
+// 	messageBytes, err := encryptedMessage.Encode()
+// 	if err != nil {
+// 		return err
+// 	}
 
-	//Prepare UDP Connection
-	conn, err := net.Dial("tcp", p2.IP+":"+strconv.Itoa(p2.Port+1))
-	if err != nil {
-		return err
-	}
+// 	//Prepare UDP Connection
+// 	conn, err := net.Dial("tcp", p2.IP+":"+strconv.Itoa(p2.Port+1))
+// 	if err != nil {
+// 		return err
+// 	}
 
-	//Write message to conn
-	_, err = conn.Write(messageBytes)
-	if err != nil {
-		return err
-	}
-	var b bytes.Buffer
-	if _, err := io.Copy(&b, conn); err != nil {
-		return err
-	}
-	p.parentCluster.ValuesMutex.Lock()
-	chunkRequest := m.Body.Content.(ChunkRequest)
-	go p.parentCluster.Values[chunkRequest.ID].File.WriteChunk(chunkRequest.Index, b.Bytes())
-	if p.parentCluster.Values[chunkRequest.ID].File.AvailableChunks == p.parentCluster.Values[chunkRequest.ID].File.NumberOfChunks {
-		p.parentCluster.Values[chunkRequest.ID].Value[p.ID] = p.parentCluster.Values[chunkRequest.ID].File.NumberOfChunks
-		p.parentCluster.Values[chunkRequest.ID].Modified = time.Now().UnixNano()
-	}
-	p.parentCluster.ValuesMutex.Unlock()
-	conn.Close()
-	return nil
-}
+// 	//Write message to conn
+// 	_, err = conn.Write(messageBytes)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	var b bytes.Buffer
+// 	if _, err := io.Copy(&b, conn); err != nil {
+// 		return err
+// 	}
+// 	p.parentCluster.ValuesMutex.Lock()
+// 	chunkRequest := m.Body.Content.(ChunkRequest)
+// 	go p.parentCluster.Values[chunkRequest.ID].File.WriteChunk(chunkRequest.Index, b.Bytes())
+// 	if p.parentCluster.Values[chunkRequest.ID].File.AvailableChunks == p.parentCluster.Values[chunkRequest.ID].File.NumberOfChunks {
+// 		p.parentCluster.Values[chunkRequest.ID].Value[p.ID] = p.parentCluster.Values[chunkRequest.ID].File.NumberOfChunks
+// 		p.parentCluster.Values[chunkRequest.ID].Modified = time.Now().UnixNano()
+// 	}
+// 	p.parentCluster.ValuesMutex.Unlock()
+// 	conn.Close()
+// 	return nil
+// }

@@ -1,10 +1,7 @@
 package main
 
 import (
-	"crypto/sha1"
 	"errors"
-	"io"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -31,7 +28,7 @@ func TestBootstrap(t *testing.T) {
 	RSA.GenerateKey()
 	C := Cluster{}
 	C.Start("127.0.0.1", 8080, RSA.Key, 1)
-	id, _ := C.AddFile("./go.mod")
+	// id, _ := C.AddFile("./go.mod")
 	time.Sleep(time.Second * 1)
 	C2 := Cluster{}
 	err := C2.Bootstrap("127.0.0.1", "127.0.0.1", 8082, 8080, RSA.Key, 1)
@@ -45,23 +42,25 @@ func TestBootstrap(t *testing.T) {
 		t.Error(err)
 	}
 	time.Sleep(time.Second * 5)
-	err = C3.DownloadFile(id, "./go2.mod", "./tmp")
-	if err != nil {
-		t.Error(errors.New("Failed to download"))
-	}
-	time.Sleep(time.Second * 3)
-	file1, _ := os.Open("./go.mod")
-	h1 := sha1.New()
-	io.Copy(h1, file1)
+	// err = C3.DownloadFile(id, "./go2.mod", "./tmp")
+	// if err != nil {
+	// 	t.Error(errors.New("Failed to download"))
+	// }
+	// file1, _ := os.Open("./go.mod")
+	// h1 := sha1.New()
+	// io.Copy(h1, file1)
 
-	file2, _ := os.Open("./go2.mod")
-	h2 := sha1.New()
-	io.Copy(h2, file2)
-	os.Remove("./go2.mod")
-	if !reflect.DeepEqual(h1.Sum(nil), h2.Sum(nil)) {
-		t.Error(errors.New("File did not transfer properly"))
+	// file2, _ := os.Open("./go2.mod")
+	// h2 := sha1.New()
+	// io.Copy(h2, file2)
+	// os.Remove("./go2.mod")
+	// if !reflect.DeepEqual(h1.Sum(nil), h2.Sum(nil)) {
+	// 	t.Error(errors.New("File did not transfer properly"))
+	// }
+	if !reflect.DeepEqual(C.Values, C2.Values) {
+		t.Error(errors.New("Values did not propagate"))
 	}
-	if C.Values[id] == nil || C2.Values[id] == nil || C3.Values[id] == nil {
+	if !reflect.DeepEqual(C.Values, C3.Values) {
 		t.Error(errors.New("Values did not propagate"))
 	}
 
